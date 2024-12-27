@@ -1,0 +1,4 @@
+requests
+numpy
+cv2
+flask
