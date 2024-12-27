@@ -15,20 +15,49 @@ class StreamProxy:
             'User-Agent': 'OctoPrint-Stream-Viewer/1.0'
         })
         self.stream_buffers = {}
-        self.chunk_size = 4096  # Increased chunk size for better performance
+        self.chunk_size = 4096
         self.frame_buffers = {}
         self.buffer_locks = {}
         self.stream_threads = {}
+        self.max_retries = 3
+        self.retry_delay = 1.0
+
+    def _verify_stream_url(self, url):
+        """Verify stream URL is accessible"""
+        try:
+            response = self.session.head(
+                url,
+                timeout=5,
+                allow_redirects=True
+            )
+            if response.status_code == 200:
+                logger.info(f"Successfully verified stream URL: {url}")
+                return True
+            logger.error(f"Stream URL verification failed with status {response.status_code}: {url}")
+            return False
+        except Exception as e:
+            logger.error(f"Error verifying stream URL {url}: {str(e)}")
+            return False
 
     def _buffer_stream(self, stream_url, stream_id):
-        """Buffer stream frames in memory"""
+        """Buffer stream frames in memory with improved error handling"""
         frame_buffer = self.frame_buffers[stream_id]
         buffer_lock = self.buffer_locks[stream_id]
-        logger.info(f"Starting buffer thread for stream {stream_id}")
-
+        retry_count = 0
         bytes_array = b''
+
         while True:
             try:
+                if not self._verify_stream_url(stream_url):
+                    retry_count += 1
+                    if retry_count > self.max_retries:
+                        logger.error(f"Max retries reached for stream {stream_id}, waiting before retry")
+                        time.sleep(self.retry_delay * 2)
+                        retry_count = 0
+                    else:
+                        time.sleep(self.retry_delay)
+                    continue
+
                 response = self.session.get(
                     stream_url,
                     stream=True,
@@ -37,8 +66,11 @@ class StreamProxy:
 
                 if response.status_code != 200:
                     logger.error(f"Failed to connect to stream {stream_id}: HTTP {response.status_code}")
-                    time.sleep(0.5)  # Reduced sleep time
+                    time.sleep(self.retry_delay)
                     continue
+
+                retry_count = 0  # Reset retry count on successful connection
+                logger.info(f"Successfully connected to stream {stream_id}")
 
                 for chunk in response.iter_content(chunk_size=self.chunk_size):
                     if not chunk:
@@ -46,11 +78,10 @@ class StreamProxy:
                     bytes_array += chunk
                     if bytes_array.endswith(b'\xff\xd9'):  # JPEG end marker
                         with buffer_lock:
-                            # Keep only the latest frame
                             try:
                                 frame_buffer.put_nowait(bytes_array)
+                                logger.debug(f"Successfully buffered frame for stream {stream_id}")
                             except:
-                                # If buffer is full, get one item to make space
                                 try:
                                     frame_buffer.get_nowait()
                                     frame_buffer.put_nowait(bytes_array)
@@ -60,10 +91,16 @@ class StreamProxy:
 
             except requests.exceptions.RequestException as e:
                 logger.error(f"Connection error buffering stream {stream_id}: {str(e)}")
-                time.sleep(0.5)  # Reduced sleep time
+                retry_count += 1
+                if retry_count > self.max_retries:
+                    logger.error(f"Max retries reached for stream {stream_id}, waiting before retry")
+                    time.sleep(self.retry_delay * 2)
+                    retry_count = 0
+                else:
+                    time.sleep(self.retry_delay)
             except Exception as e:
                 logger.error(f"Unexpected error buffering stream {stream_id}: {str(e)}")
-                time.sleep(0.5)  # Reduced sleep time
+                time.sleep(self.retry_delay)
 
     def get_frame(self, stream_id):
         """Get the latest frame for a stream"""
@@ -80,7 +117,13 @@ class StreamProxy:
         """Ensure a stream buffer exists and is running"""
         if stream_id not in self.frame_buffers:
             logger.info(f"Initializing buffer for stream {stream_id}")
-            self.frame_buffers[stream_id] = Queue(maxsize=2)  # Increased buffer size
+
+            # Verify stream URL first
+            if not self._verify_stream_url(stream_url):
+                logger.error(f"Failed to verify stream URL for stream {stream_id}: {stream_url}")
+                raise Exception(f"Stream URL verification failed: {stream_url}")
+
+            self.frame_buffers[stream_id] = Queue(maxsize=2)
             self.buffer_locks[stream_id] = threading.Lock()
 
             # Stop existing thread if any
@@ -93,6 +136,7 @@ class StreamProxy:
                 daemon=True
             )
             self.stream_threads[stream_id].start()
+            logger.info(f"Started buffer thread for stream {stream_id}")
 
     def proxy_stream(self, stream_url, stream_id=None):
         """Proxy a stream, optionally with buffering"""
