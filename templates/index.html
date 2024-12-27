@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Octoprint Camera Streams</title>
-    <link href="https://cdn.replit.com/agent/bootstrap-agent-dark-theme.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
         .stream-container {
             position: relative;
@@ -48,19 +48,6 @@
             <p class="text-muted">Viewing {{ streams|length }} camera streams</p>
         </header>
 
-        {% if is_replit %}
-        <div class="alert alert-info" role="alert">
-            <h4 class="alert-heading">Running on Replit</h4>
-            <p>This application is currently running on Replit's cloud infrastructure and cannot access local network cameras (10.0.0.x addresses).</p>
-            <hr>
-            <p class="mb-0">To access local network cameras, you'll need to:</p>
-            <ul>
-                <li>Clone this repository and run it locally on your network</li>
-                <li>Or set environment variables (CAMERA_STREAM_1_URL, etc.) to point to publicly accessible camera streams</li>
-            </ul>
-        </div>
-        {% endif %}
-
         {% if error %}
         <div class="alert alert-danger" role="alert">
             {{ error }}
@@ -73,10 +60,8 @@
                 <div class="card">
                     <div class="card-header d-flex justify-content-between align-items-center">
                         <h5 class="card-title mb-0">Camera {{ stream.id }}</h5>
-                        <span id="stream-status-{{ stream.id }}" class="badge {% if stream.is_local and is_replit %}bg-secondary{% elif stream.status %}bg-success{% else %}bg-danger{% endif %}">
-                            {% if stream.is_local and is_replit %}
-                                Local Network
-                            {% elif stream.status %}
+                        <span id="stream-status-{{ stream.id }}" class="badge {% if stream.status %}bg-success{% else %}bg-danger{% endif %}">
+                            {% if stream.status %}
                                 Online
                             {% else %}
                                 Offline
@@ -85,7 +70,7 @@
                     </div>
                     <div class="card-body p-0">
                         <div id="stream-container-{{ stream.id }}" class="stream-container {% if not stream.status %}stream-offline{% endif %}" 
-                             data-error="{% if stream.is_local and is_replit %}Local network stream not accessible on Replit{% else %}Stream Offline: {{ stream.error if stream.error else 'Connection failed' }}{% endif %}">
+                             data-error="Stream Offline: {{ stream.error if stream.error else 'Connection failed' }}">
                             <img src="{{ stream.url }}" alt="Camera {{ stream.id }} Stream"
                                  onerror="this.style.display='none'"
                                  onload="this.style.display='block'">
@@ -93,11 +78,6 @@
                     </div>
                     <div class="card-footer">
                         <small class="text-muted">Stream URL: {{ stream.url }}</small>
-                        {% if stream.is_local and is_replit %}
-                        <div class="mt-2">
-                            <small class="text-warning">⚠️ This is a local network camera and cannot be accessed from Replit</small>
-                        </div>
-                        {% endif %}
                     </div>
                 </div>
             </div>

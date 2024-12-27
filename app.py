@@ -3,9 +3,7 @@ import os
 from flask import Flask, render_template, jsonify
 from urllib.request import urlopen, Request
 from urllib.error import URLError, HTTPError
-import json
 import time
-import re
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
@@ -30,44 +28,17 @@ for i in range(len(DEFAULT_STREAM_URLS)):
     else:
         STREAM_URLS.append(DEFAULT_STREAM_URLS[i])
 
-# Add test streams for development
-if os.environ.get('INCLUDE_TEST_STREAMS', 'true').lower() == 'true':
-    STREAM_URLS.extend([
-        "https://picsum.photos/seed/test1/800/600",
-        "https://picsum.photos/seed/test2/800/600"
-    ])
-
-def is_local_url(url):
-    """Check if a URL points to a local network address"""
-    local_patterns = [
-        r'http://10\.',
-        r'http://172\.(1[6-9]|2[0-9]|3[0-1])\.',
-        r'http://192\.168\.',
-        r'http://localhost',
-        r'http://127\.',
-    ]
-    return any(re.match(pattern, url) for pattern in local_patterns)
 
 def check_stream_status(url):
     """Check if a stream URL is accessible with retry logic"""
-    # Skip checking local URLs when running on Replit
-    if os.environ.get('REPL_ID') and is_local_url(url):
-        return {
-            'status': False,
-            'error': 'Local network stream not accessible on Replit',
-            'is_local': True
-        }
-
     max_retries = 2
     base_timeout = 5.0  # More lenient base timeout
 
     for attempt in range(max_retries):
         try:
-            # Increase timeout with each retry
             current_timeout = base_timeout * (attempt + 1)
             logger.debug(f"Checking stream {url} (attempt {attempt + 1}/{max_retries}, timeout={current_timeout}s)")
 
-            # Create a Request object with a User-Agent header
             req = Request(
                 url,
                 headers={'User-Agent': 'OctoPrint-Stream-Viewer/1.0'}
@@ -76,15 +47,13 @@ def check_stream_status(url):
             response = urlopen(req, timeout=current_timeout)
             return {
                 'status': True,
-                'error': None,
-                'is_local': is_local_url(url)
+                'error': None
             }
         except HTTPError as e:
             logger.error(f"HTTP error checking stream {url}: {e.code} - {e.reason}")
             return {
                 'status': False,
-                'error': f"HTTP {e.code}: {e.reason}",
-                'is_local': is_local_url(url)
+                'error': f"HTTP {e.code}: {e.reason}"
             }
         except URLError as e:
             if attempt < max_retries - 1:
@@ -94,15 +63,13 @@ def check_stream_status(url):
             logger.error(f"Error checking stream {url} after {max_retries} attempts: {str(e)}")
             return {
                 'status': False,
-                'error': str(e),
-                'is_local': is_local_url(url)
+                'error': str(e)
             }
         except Exception as e:
             logger.error(f"Unexpected error checking stream {url}: {str(e)}")
             return {
                 'status': False,
-                'error': f"Unexpected error: {str(e)}",
-                'is_local': is_local_url(url)
+                'error': f"Unexpected error: {str(e)}"
             }
 
 @app.route('/')
@@ -113,21 +80,15 @@ def index():
     for i, url in enumerate(STREAM_URLS):
         status_info = check_stream_status(url)
         if status_info is None:
-            status_info = {'status': False, 'error': 'Failed to check stream status', 'is_local': False}
+            status_info = {'status': False, 'error': 'Failed to check stream status'}
         stream_statuses.append({
             'id': i + 1,
             'url': url,
             'status': status_info.get('status', False),
-            'error': status_info.get('error', 'Unknown error'),
-            'is_local': status_info.get('is_local', False)
+            'error': status_info.get('error', 'Unknown error')
         })
 
-    # Check if we're running on Replit
-    is_replit = os.environ.get('REPL_ID') is not None
-
-    return render_template('index.html', 
-                         streams=stream_statuses,
-                         is_replit=is_replit)
+    return render_template('index.html', streams=stream_statuses)
 
 @app.route('/check_streams')
 def check_streams():
@@ -136,13 +97,12 @@ def check_streams():
     for i, url in enumerate(STREAM_URLS):
         status_info = check_stream_status(url)
         if status_info is None:
-            status_info = {'status': False, 'error': 'Failed to check stream status', 'is_local': False}
+            status_info = {'status': False, 'error': 'Failed to check stream status'}
         stream_statuses.append({
             'id': i + 1,
             'url': url,
             'status': status_info.get('status', False),
-            'error': status_info.get('error', 'Unknown error'),
-            'is_local': status_info.get('is_local', False)
+            'error': status_info.get('error', 'Unknown error')
         })
     return jsonify(stream_statuses)
 
