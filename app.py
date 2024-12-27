@@ -6,6 +6,8 @@ from urllib.error import URLError, HTTPError
 import time
 from stream_mixer import StreamMixer
 from stream_proxy import stream_proxy
+from urllib.parse import urljoin
+import flask
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
@@ -30,12 +32,27 @@ for i in range(len(DEFAULT_STREAM_URLS)):
     else:
         STREAM_URLS.append(DEFAULT_STREAM_URLS[i])
 
-# Initialize the stream mixer with proxied URLs
-stream_mixer = StreamMixer(
-    f"/proxy-stream/1",
-    f"/proxy-stream/2"
-)
-stream_mixer.start()
+def get_server_url():
+    """Get the server's base URL"""
+    if 'X-Forwarded-Host' in flask.request.headers:
+        proto = flask.request.headers.get('X-Forwarded-Proto', 'http')
+        host = flask.request.headers['X-Forwarded-Host']
+        return f"{proto}://{host}"
+    return "http://localhost:5000"
+
+# Initialize the stream mixer with full URLs (will be set in before_request)
+stream_mixer = None
+
+@app.before_request
+def setup_stream_mixer():
+    global stream_mixer
+    if stream_mixer is None:
+        base_url = get_server_url()
+        stream_mixer = StreamMixer(
+            urljoin(base_url, "/proxy-stream/1"),
+            urljoin(base_url, "/proxy-stream/2")
+        )
+        stream_mixer.start()
 
 @app.route('/proxy-stream/<int:stream_id>')
 def proxy_stream(stream_id):
