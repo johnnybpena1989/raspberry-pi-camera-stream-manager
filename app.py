@@ -1,4 +1,5 @@
 import logging
+import os
 from flask import Flask, render_template
 import urllib.request
 from urllib.error import URLError
@@ -12,16 +13,28 @@ logger = logging.getLogger(__name__)
 app = Flask(__name__)
 app.secret_key = "octoprint-stream-viewer-secret-key"
 
-# Configure stream URLs
-STREAM_URLS = [
-    # Production cameras (currently offline)
+# Configure stream URLs - can be overridden by environment variables
+DEFAULT_STREAM_URLS = [
     "http://10.0.0.15:8080/stream",
     "http://10.0.0.15:8081/stream",
     "http://10.0.0.15:8082/stream",
-    # Test streams for development
-    "https://picsum.photos/seed/test1/800/600",  # Static test image with fixed seed
-    "https://picsum.photos/seed/test2/800/600"   # Another test image with different seed
 ]
+
+# Get stream URLs from environment or use defaults
+STREAM_URLS = []
+for i in range(len(DEFAULT_STREAM_URLS)):
+    env_url = os.environ.get(f'CAMERA_STREAM_{i+1}_URL')
+    if env_url:
+        STREAM_URLS.append(env_url)
+    else:
+        STREAM_URLS.append(DEFAULT_STREAM_URLS[i])
+
+# Add test streams for development
+if os.environ.get('INCLUDE_TEST_STREAMS', 'true').lower() == 'true':
+    STREAM_URLS.extend([
+        "https://picsum.photos/seed/test1/800/600",
+        "https://picsum.photos/seed/test2/800/600"
+    ])
 
 def check_stream_status(url):
     """Check if a stream URL is accessible with retry logic"""
@@ -64,7 +77,12 @@ def index():
             'error': status_info['error']
         })
 
-    return render_template('index.html', streams=stream_statuses)
+    # Check if we're running on Replit
+    is_replit = os.environ.get('REPL_ID') is not None
+
+    return render_template('index.html', 
+                         streams=stream_statuses,
+                         is_replit=is_replit)
 
 @app.route('/check_streams')
 def check_streams():

@@ -48,6 +48,19 @@
             <p class="text-muted">Viewing {{ streams|length }} camera streams</p>
         </header>
 
+        {% if is_replit %}
+        <div class="alert alert-info" role="alert">
+            <h4 class="alert-heading">Running on Replit</h4>
+            <p>This application is currently running on Replit's cloud infrastructure and cannot access local network cameras (10.0.0.x addresses).</p>
+            <hr>
+            <p class="mb-0">To access local network cameras, you'll need to:</p>
+            <ul>
+                <li>Clone this repository and run it locally on your network</li>
+                <li>Or set environment variables (CAMERA_STREAM_1_URL, etc.) to point to publicly accessible camera streams</li>
+            </ul>
+        </div>
+        {% endif %}
+
         {% if error %}
         <div class="alert alert-danger" role="alert">
             {{ error }}
