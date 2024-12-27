@@ -98,13 +98,13 @@
                     <div class="card-body p-0">
                         <div id="stream-container-{{ stream.id }}" class="stream-container {% if not stream.status %}stream-offline{% endif %}" 
                              data-error="Stream Offline: {{ stream.error if stream.error else 'Connection failed' }}">
-                            <img src="{{ stream.url }}" alt="Camera {{ stream.id }} Stream"
+                            <img src="{{ url_for('proxy_stream', stream_id=stream.id) }}" alt="Camera {{ stream.id }} Stream"
                                  onerror="this.style.display='none'"
                                  onload="this.style.display='block'">
                         </div>
                     </div>
                     <div class="card-footer">
-                        <small class="text-muted">Stream URL: {{ stream.url }}</small>
+                        <small class="text-muted">Remote URL: {{ STREAM_URLS[stream.id - 1] }}</small>
                     </div>
                 </div>
             </div>

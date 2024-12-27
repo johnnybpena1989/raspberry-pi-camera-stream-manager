@@ -131,12 +131,14 @@ def index():
             status_info = {'status': False, 'error': 'Failed to check stream status'}
         stream_statuses.append({
             'id': i + 1,
-            'url': f"/proxy-stream/{i + 1}",  # Use proxied URLs in the template
+            'url': f"/proxy-stream/{i + 1}",  # Use proxied URLs for viewing
             'status': status_info.get('status', False),
             'error': status_info.get('error', 'Unknown error')
         })
 
-    return render_template('index.html', streams=stream_statuses)
+    return render_template('index.html', 
+                         streams=stream_statuses,
+                         STREAM_URLS=STREAM_URLS)  # Pass the actual URLs to template
 
 @app.route('/mixed-stream')
 def mixed_stream():
