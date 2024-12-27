@@ -4,8 +4,8 @@ import threading
 import time
 from queue import Queue
 import logging
-from urllib.request import urlopen
-import urllib.error
+import requests
+from urllib.parse import urlparse
 
 logger = logging.getLogger(__name__)
 
@@ -23,6 +23,7 @@ class StreamMixer:
         self.stream2_status = {'online': False, 'last_check': 0, 'retry_count': 0}
         self.retry_interval = 5  # Base retry interval in seconds
         self.max_retries = 3
+        self.session = requests.Session()
 
     def start(self):
         """Start the stream mixing process"""
@@ -30,7 +31,7 @@ class StreamMixer:
         self.mixing_thread = threading.Thread(target=self._mix_streams)
         self.mixing_thread.daemon = True
         self.mixing_thread.start()
-        logger.info("Stream mixer started")
+        logger.info(f"Stream mixer started with URLs: {self.url1}, {self.url2}")
 
     def stop(self):
         """Stop the stream mixing process"""
@@ -56,11 +57,14 @@ class StreamMixer:
             return None
 
         try:
-            stream = urlopen(url, timeout=5)
-            bytes_array = b''
+            # Stream the response in chunks to find a complete JPEG frame
+            response = self.session.get(url, stream=True, timeout=5)
+            if response.status_code != 200:
+                logger.error(f"Stream {stream_number} returned status code {response.status_code}")
+                return None
 
-            for _ in range(50):  # Limit read attempts
-                chunk = stream.read(1024)
+            bytes_array = b''
+            for chunk in response.iter_content(chunk_size=1024):
                 if not chunk:
                     break
                 bytes_array += chunk
@@ -100,14 +104,17 @@ class StreamMixer:
                 # Update last successful frames if available
                 if frame1 is not None:
                     last_successful_frame1 = frame1.copy()
+                    logger.debug("Successfully received frame from stream 1")
                 if frame2 is not None:
                     last_successful_frame2 = frame2.copy()
+                    logger.debug("Successfully received frame from stream 2")
 
                 # Use last successful frames if current frames are unavailable
                 frame1 = frame1 if frame1 is not None else last_successful_frame1
                 frame2 = frame2 if frame2 is not None else last_successful_frame2
 
                 if frame1 is None and frame2 is None:
+                    logger.warning("Both streams currently unavailable")
                     time.sleep(1)  # Longer sleep when both streams are down
                     continue
 
@@ -145,6 +152,7 @@ class StreamMixer:
                 # Put in queue, skip if queue is full
                 try:
                     self.frame_queue.put_nowait(buffer.tobytes())
+                    logger.debug("Successfully mixed and queued frame")
                 except:
                     pass
 
