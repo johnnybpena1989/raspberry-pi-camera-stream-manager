@@ -1,8 +1,8 @@
 import logging
 import os
-from flask import Flask, render_template
-import urllib.request
-from urllib.error import URLError
+from flask import Flask, render_template, jsonify
+from urllib.request import urlopen, Request
+from urllib.error import URLError, HTTPError
 import json
 import time
 
@@ -11,7 +11,7 @@ logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
-app.secret_key = "octoprint-stream-viewer-secret-key"
+app.secret_key = os.environ.get("FLASK_SECRET_KEY") or "octoprint-stream-viewer-secret-key"
 
 # Configure stream URLs - can be overridden by environment variables
 DEFAULT_STREAM_URLS = [
@@ -47,12 +47,24 @@ def check_stream_status(url):
             current_timeout = base_timeout * (attempt + 1)
             logger.debug(f"Checking stream {url} (attempt {attempt + 1}/{max_retries}, timeout={current_timeout}s)")
 
-            response = urllib.request.urlopen(url, timeout=current_timeout)
+            # Create a Request object with a User-Agent header
+            req = Request(
+                url,
+                headers={'User-Agent': 'OctoPrint-Stream-Viewer/1.0'}
+            )
+
+            response = urlopen(req, timeout=current_timeout)
             return {
                 'status': True,
                 'error': None
             }
-        except (URLError, TimeoutError) as e:
+        except HTTPError as e:
+            logger.error(f"HTTP error checking stream {url}: {e.code} - {e.reason}")
+            return {
+                'status': False,
+                'error': f"HTTP {e.code}: {e.reason}"
+            }
+        except URLError as e:
             if attempt < max_retries - 1:
                 # Wait before retry with exponential backoff
                 time.sleep(1 * (attempt + 1))
@@ -62,6 +74,12 @@ def check_stream_status(url):
                 'status': False,
                 'error': str(e)
             }
+        except Exception as e:
+            logger.error(f"Unexpected error checking stream {url}: {str(e)}")
+            return {
+                'status': False,
+                'error': f"Unexpected error: {str(e)}"
+            }
 
 @app.route('/')
 def index():
@@ -70,11 +88,13 @@ def index():
     stream_statuses = []
     for i, url in enumerate(STREAM_URLS):
         status_info = check_stream_status(url)
+        if status_info is None:
+            status_info = {'status': False, 'error': 'Failed to check stream status'}
         stream_statuses.append({
             'id': i + 1,
             'url': url,
-            'status': status_info['status'],
-            'error': status_info['error']
+            'status': status_info.get('status', False),
+            'error': status_info.get('error', 'Unknown error')
         })
 
     # Check if we're running on Replit
@@ -90,13 +110,15 @@ def check_streams():
     stream_statuses = []
     for i, url in enumerate(STREAM_URLS):
         status_info = check_stream_status(url)
+        if status_info is None:
+            status_info = {'status': False, 'error': 'Failed to check stream status'}
         stream_statuses.append({
             'id': i + 1,
             'url': url,
-            'status': status_info['status'],
-            'error': status_info['error']
+            'status': status_info.get('status', False),
+            'error': status_info.get('error', 'Unknown error')
         })
-    return json.dumps(stream_statuses)
+    return jsonify(stream_statuses)
 
 # Error handlers
 @app.errorhandler(404)
