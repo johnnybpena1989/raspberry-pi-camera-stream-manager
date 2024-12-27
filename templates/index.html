@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Octoprint Camera Streams</title>
+    <link href="https://cdn.replit.com/agent/bootstrap-agent-dark-theme.min.css" rel="stylesheet">
+    <style>
+        .stream-container {
+            position: relative;
+            aspect-ratio: 16/9;
+            background-color: var(--bs-dark);
+            margin-bottom: 1rem;
+        }
+        .stream-container img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+        .stream-offline {
+            position: relative;
+        }
+        .stream-offline::after {
+            content: 'Stream Offline';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: rgba(0, 0, 0, 0.7);
+            padding: 1rem;
+            border-radius: 0.25rem;
+            color: var(--bs-danger);
+        }
+        .status-indicator {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            z-index: 1000;
+        }
+    </style>
+</head>
+<body>
+    <div class="container py-4">
+        <header class="pb-3 mb-4 border-bottom">
+            <h1 class="fw-bold">Octoprint Camera Streams</h1>
+        </header>
+
+        {% if error %}
+        <div class="alert alert-danger" role="alert">
+            {{ error }}
+        </div>
+        {% endif %}
+
+        <div class="row g-4">
+            {% for stream in streams %}
+            <div class="col-md-4">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="card-title mb-0">Camera {{ stream.id }}</h5>
+                        <span id="stream-status-{{ stream.id }}" class="badge bg-secondary">
+                            Checking...
+                        </span>
+                    </div>
+                    <div class="card-body p-0">
+                        <div id="stream-container-{{ stream.id }}" class="stream-container">
+                            <img src="{{ stream.url }}" alt="Camera {{ stream.id }} Stream"
+                                 onerror="this.style.display='none'"
+                                 onload="this.style.display='block'">
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="{{ url_for('static', filename='js/stream_monitor.js') }}"></script>
+</body>
+</html>
