@@ -21,7 +21,7 @@
             position: relative;
         }
         .stream-offline::after {
-            content: 'Stream Offline';
+            content: attr(data-error);
             position: absolute;
             top: 50%;
             left: 50%;
@@ -30,6 +30,8 @@
             padding: 1rem;
             border-radius: 0.25rem;
             color: var(--bs-danger);
+            text-align: center;
+            width: 80%;
         }
         .status-indicator {
             position: absolute;
@@ -43,6 +45,7 @@
     <div class="container py-4">
         <header class="pb-3 mb-4 border-bottom">
             <h1 class="fw-bold">Octoprint Camera Streams</h1>
+            <p class="text-muted">Viewing {{ streams|length }} camera streams</p>
         </header>
 
         {% if error %}
@@ -62,11 +65,15 @@
                         </span>
                     </div>
                     <div class="card-body p-0">
-                        <div id="stream-container-{{ stream.id }}" class="stream-container">
+                        <div id="stream-container-{{ stream.id }}" class="stream-container" 
+                             data-error="Stream Offline: {{ stream.error if stream.error else 'Connection failed' }}">
                             <img src="{{ stream.url }}" alt="Camera {{ stream.id }} Stream"
                                  onerror="this.style.display='none'"
                                  onload="this.style.display='block'">
                         </div>
+                    </div>
+                    <div class="card-footer">
+                        <small class="text-muted">Stream URL: {{ stream.url }}</small>
                     </div>
                 </div>
             </div>

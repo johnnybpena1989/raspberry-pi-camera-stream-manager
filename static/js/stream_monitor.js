@@ -1,9 +1,9 @@
 document.addEventListener('DOMContentLoaded', function() {
     // Function to update stream status indicators
-    function updateStreamStatus(streamId, status) {
+    function updateStreamStatus(streamId, status, error) {
         const statusElement = document.querySelector(`#stream-status-${streamId}`);
         const streamContainer = document.querySelector(`#stream-container-${streamId}`);
-        
+
         if (status) {
             statusElement.className = 'badge bg-success';
             statusElement.textContent = 'Online';
@@ -12,6 +12,7 @@ document.addEventListener('DOMContentLoaded', function() {
             statusElement.className = 'badge bg-danger';
             statusElement.textContent = 'Offline';
             streamContainer.classList.add('stream-offline');
+            streamContainer.setAttribute('data-error', `Stream Offline: ${error || 'Connection failed'}`);
         }
     }
 
@@ -21,7 +22,7 @@ document.addEventListener('DOMContentLoaded', function() {
             .then(response => response.json())
             .then(streams => {
                 streams.forEach(stream => {
-                    updateStreamStatus(stream.id, stream.status);
+                    updateStreamStatus(stream.id, stream.status, stream.error);
                 });
             })
             .catch(error => {
@@ -29,7 +30,7 @@ document.addEventListener('DOMContentLoaded', function() {
             });
     }
 
-    // Check stream statuses periodically
+    // Check stream statuses periodically (every 10 seconds)
     setInterval(checkStreamStatuses, 10000);
 
     // Initial status check
