@@ -35,10 +35,10 @@ for i in range(len(DEFAULT_STREAM_URLS)):
 def get_server_url():
     """Get the server's base URL"""
     if 'X-Forwarded-Host' in flask.request.headers:
-        proto = flask.request.headers.get('X-Forwarded-Proto', 'http')
+        proto = flask.request.headers.get('X-Forwarded-Proto', 'https')  # Default to https
         host = flask.request.headers['X-Forwarded-Host']
         return f"{proto}://{host}"
-    return "http://localhost:5000"
+    return "https://localhost:5000"  # Use https by default
 
 # Initialize the stream mixer with full URLs (will be set in before_request)
 stream_mixer = None
@@ -53,9 +53,10 @@ def setup_stream_mixer():
             stream_proxy.ensure_stream_buffer(url, i)
 
         base_url = get_server_url()
+        logger.info(f"Using base URL for stream mixer: {base_url}")
         stream_mixer = StreamMixer(
-            urljoin(base_url, "/proxy-stream/1"),
-            urljoin(base_url, "/proxy-stream/2")
+            urljoin(base_url, f"/proxy-stream/1"),
+            urljoin(base_url, f"/proxy-stream/2")
         )
         stream_mixer.start()
         logger.info("Stream mixer initialized and started")
