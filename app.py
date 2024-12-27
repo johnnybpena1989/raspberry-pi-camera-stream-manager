@@ -6,7 +6,7 @@ from urllib.error import URLError, HTTPError
 import time
 from stream_mixer import StreamMixer
 from stream_proxy import stream_proxy
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlparse
 import flask
 
 # Configure logging
@@ -35,10 +35,13 @@ for i in range(len(DEFAULT_STREAM_URLS)):
 def get_server_url():
     """Get the server's base URL"""
     if 'X-Forwarded-Host' in flask.request.headers:
-        proto = flask.request.headers.get('X-Forwarded-Proto', 'https')  # Default to https
+        proto = flask.request.headers.get('X-Forwarded-Proto', 'http')
         host = flask.request.headers['X-Forwarded-Host']
         return f"{proto}://{host}"
-    return "https://localhost:5000"  # Use https by default
+
+    # Use same protocol as request
+    proto = 'https' if flask.request.is_secure else 'http'
+    return f"{proto}://localhost:5000"
 
 # Initialize the stream mixer with full URLs (will be set in before_request)
 stream_mixer = None
@@ -50,14 +53,21 @@ def setup_stream_mixer():
         # Initialize proxy streams first
         for i, url in enumerate(STREAM_URLS[:2], 1):  # Only first two streams for mixing
             logger.info(f"Initializing proxy stream {i} with URL: {url}")
-            stream_proxy.ensure_stream_buffer(url, i)
+            try:
+                stream_proxy.ensure_stream_buffer(url, i)
+            except Exception as e:
+                logger.error(f"Failed to initialize stream {i}: {str(e)}")
 
+        # Get base URL with correct protocol
         base_url = get_server_url()
         logger.info(f"Using base URL for stream mixer: {base_url}")
-        stream_mixer = StreamMixer(
-            urljoin(base_url, f"/proxy-stream/1"),
-            urljoin(base_url, f"/proxy-stream/2")
-        )
+
+        # Create proxy URLs using same protocol as main app
+        proxy_url1 = urljoin(base_url, f"/proxy-stream/1")
+        proxy_url2 = urljoin(base_url, f"/proxy-stream/2")
+        logger.info(f"Proxy URLs: {proxy_url1}, {proxy_url2}")
+
+        stream_mixer = StreamMixer(proxy_url1, proxy_url2)
         stream_mixer.start()
         logger.info("Stream mixer initialized and started")
 
