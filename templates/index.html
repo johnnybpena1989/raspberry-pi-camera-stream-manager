@@ -73,13 +73,19 @@
                 <div class="card">
                     <div class="card-header d-flex justify-content-between align-items-center">
                         <h5 class="card-title mb-0">Camera {{ stream.id }}</h5>
-                        <span id="stream-status-{{ stream.id }}" class="badge bg-secondary">
-                            Checking...
+                        <span id="stream-status-{{ stream.id }}" class="badge {% if stream.is_local and is_replit %}bg-secondary{% elif stream.status %}bg-success{% else %}bg-danger{% endif %}">
+                            {% if stream.is_local and is_replit %}
+                                Local Network
+                            {% elif stream.status %}
+                                Online
+                            {% else %}
+                                Offline
+                            {% endif %}
                         </span>
                     </div>
                     <div class="card-body p-0">
-                        <div id="stream-container-{{ stream.id }}" class="stream-container" 
-                             data-error="Stream Offline: {{ stream.error if stream.error else 'Connection failed' }}">
+                        <div id="stream-container-{{ stream.id }}" class="stream-container {% if not stream.status %}stream-offline{% endif %}" 
+                             data-error="{% if stream.is_local and is_replit %}Local network stream not accessible on Replit{% else %}Stream Offline: {{ stream.error if stream.error else 'Connection failed' }}{% endif %}">
                             <img src="{{ stream.url }}" alt="Camera {{ stream.id }} Stream"
                                  onerror="this.style.display='none'"
                                  onload="this.style.display='block'">
@@ -87,6 +93,11 @@
                     </div>
                     <div class="card-footer">
                         <small class="text-muted">Stream URL: {{ stream.url }}</small>
+                        {% if stream.is_local and is_replit %}
+                        <div class="mt-2">
+                            <small class="text-warning">⚠️ This is a local network camera and cannot be accessed from Replit</small>
+                        </div>
+                        {% endif %}
                     </div>
                 </div>
             </div>
