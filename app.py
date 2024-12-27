@@ -68,7 +68,8 @@ def setup_stream_mixer():
         proxy_url2 = urljoin(base_url, f"/proxy-stream/2")
         logger.info(f"Proxy URLs: {proxy_url1}, {proxy_url2}")
 
-        stream_mixer = StreamMixer(proxy_url1, proxy_url2)
+        # Initialize mixer with 30-second interval and 3-second crossfade
+        stream_mixer = StreamMixer(proxy_url1, proxy_url2, transition_interval=30, transition_duration=3)
         stream_mixer.start()
         logger.info("Stream mixer initialized and started")
 
