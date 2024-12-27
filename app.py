@@ -47,17 +47,24 @@ stream_mixer = None
 def setup_stream_mixer():
     global stream_mixer
     if stream_mixer is None:
+        # Initialize proxy streams first
+        for i, url in enumerate(STREAM_URLS[:2], 1):  # Only first two streams for mixing
+            logger.info(f"Initializing proxy stream {i} with URL: {url}")
+            stream_proxy.ensure_stream_buffer(url, i)
+
         base_url = get_server_url()
         stream_mixer = StreamMixer(
             urljoin(base_url, "/proxy-stream/1"),
             urljoin(base_url, "/proxy-stream/2")
         )
         stream_mixer.start()
+        logger.info("Stream mixer initialized and started")
 
 @app.route('/proxy-stream/<int:stream_id>')
 def proxy_stream(stream_id):
     """Proxy the camera stream through a secure connection"""
     if 1 <= stream_id <= len(STREAM_URLS):
+        logger.debug(f"Proxying stream {stream_id} from URL: {STREAM_URLS[stream_id - 1]}")
         return stream_proxy.proxy_stream(STREAM_URLS[stream_id - 1], stream_id)
     return Response(status=404)
 
@@ -106,7 +113,7 @@ def check_stream_status(url):
 def generate_mixed_frames():
     """Generator function for mixed stream frames"""
     while True:
-        frame = stream_mixer.get_latest_frame()
+        frame = stream_mixer.get_latest_frame() if stream_mixer else None
         if frame is not None:
             yield (b'--frame\r\n'
                    b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')

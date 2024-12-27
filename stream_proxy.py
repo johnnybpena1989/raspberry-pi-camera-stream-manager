@@ -24,6 +24,7 @@ class StreamProxy:
         """Buffer stream frames in memory"""
         frame_buffer = self.frame_buffers[stream_id]
         buffer_lock = self.buffer_locks[stream_id]
+        logger.info(f"Starting buffer thread for stream {stream_id} with URL: {stream_url}")
 
         while True:
             try:
@@ -43,7 +44,7 @@ class StreamProxy:
                     if not chunk:
                         break
                     bytes_array += chunk
-                    if bytes_array.endswith(b'\xff\xd9'):
+                    if bytes_array.endswith(b'\xff\xd9'):  # JPEG end marker
                         with buffer_lock:
                             # Keep only the latest frame
                             while not frame_buffer.empty():
@@ -52,34 +53,50 @@ class StreamProxy:
                                 except:
                                     break
                             frame_buffer.put(bytes_array)
+                            logger.debug(f"Successfully buffered frame for stream {stream_id}")
                         bytes_array = b''
 
+            except requests.exceptions.RequestException as e:
+                logger.error(f"Connection error buffering stream {stream_id}: {str(e)}")
+                time.sleep(1)
             except Exception as e:
-                logger.error(f"Error buffering stream {stream_id}: {str(e)}")
+                logger.error(f"Unexpected error buffering stream {stream_id}: {str(e)}")
                 time.sleep(1)
 
     def get_frame(self, stream_id):
         """Get the latest frame for a stream"""
         if stream_id not in self.frame_buffers:
+            logger.warning(f"Attempted to get frame from non-existent buffer for stream {stream_id}")
             return None
 
         try:
             with self.buffer_locks[stream_id]:
-                return self.frame_buffers[stream_id].get_nowait()
+                frame = self.frame_buffers[stream_id].get_nowait()
+                logger.debug(f"Successfully retrieved frame from buffer for stream {stream_id}")
+                return frame
         except:
             return None
 
     def ensure_stream_buffer(self, stream_url, stream_id):
         """Ensure a stream buffer exists and is running"""
         if stream_id not in self.frame_buffers:
+            logger.info(f"Initializing buffer for stream {stream_id}")
             self.frame_buffers[stream_id] = Queue(maxsize=1)
             self.buffer_locks[stream_id] = threading.Lock()
+
+            # Stop existing thread if any
+            if stream_id in self.stream_threads and self.stream_threads[stream_id].is_alive():
+                logger.info(f"Stopping existing thread for stream {stream_id}")
+                # We can't actually stop the thread, but it will exit on next iteration
+                self.stream_threads[stream_id] = None
+
             self.stream_threads[stream_id] = threading.Thread(
                 target=self._buffer_stream,
                 args=(stream_url, stream_id),
                 daemon=True
             )
             self.stream_threads[stream_id].start()
+            logger.info(f"Started buffer thread for stream {stream_id}")
 
     def proxy_stream(self, stream_url, stream_id=None):
         """Proxy a stream, optionally with buffering"""
@@ -112,6 +129,7 @@ class StreamProxy:
 
     def _generate_from_buffer(self, stream_id):
         """Generate frames from the buffer"""
+        logger.info(f"Starting frame generation from buffer for stream {stream_id}")
         while True:
             frame = self.get_frame(stream_id)
             if frame is not None:
