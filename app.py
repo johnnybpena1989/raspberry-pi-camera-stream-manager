@@ -1,9 +1,10 @@
 import logging
 import os
-from flask import Flask, render_template, jsonify
+from flask import Flask, render_template, jsonify, Response
 from urllib.request import urlopen, Request
 from urllib.error import URLError, HTTPError
 import time
+from stream_mixer import StreamMixer
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
@@ -28,6 +29,9 @@ for i in range(len(DEFAULT_STREAM_URLS)):
     else:
         STREAM_URLS.append(DEFAULT_STREAM_URLS[i])
 
+# Initialize the stream mixer with the first two streams
+stream_mixer = StreamMixer(STREAM_URLS[0], STREAM_URLS[1])
+stream_mixer.start()
 
 def check_stream_status(url):
     """Check if a stream URL is accessible with retry logic"""
@@ -57,7 +61,6 @@ def check_stream_status(url):
             }
         except URLError as e:
             if attempt < max_retries - 1:
-                # Wait before retry with exponential backoff
                 time.sleep(1 * (attempt + 1))
                 continue
             logger.error(f"Error checking stream {url} after {max_retries} attempts: {str(e)}")
@@ -71,6 +74,16 @@ def check_stream_status(url):
                 'status': False,
                 'error': f"Unexpected error: {str(e)}"
             }
+
+def generate_mixed_frames():
+    """Generator function for mixed stream frames"""
+    while True:
+        frame = stream_mixer.get_latest_frame()
+        if frame is not None:
+            yield (b'--frame\r\n'
+                   b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
+        else:
+            time.sleep(0.033)  # Approximate 30 FPS
 
 @app.route('/')
 def index():
@@ -89,6 +102,12 @@ def index():
         })
 
     return render_template('index.html', streams=stream_statuses)
+
+@app.route('/mixed-stream')
+def mixed_stream():
+    """Stream the mixed video feed"""
+    return Response(generate_mixed_frames(),
+                    mimetype='multipart/x-mixed-replace; boundary=frame')
 
 @app.route('/check_streams')
 def check_streams():
@@ -114,3 +133,11 @@ def not_found_error(error):
 @app.errorhandler(500)
 def internal_error(error):
     return render_template('index.html', error="Internal server error"), 500
+
+# Cleanup when the application exits
+import atexit
+
+@atexit.register
+def cleanup():
+    if stream_mixer:
+        stream_mixer.stop()

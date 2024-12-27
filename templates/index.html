@@ -39,6 +39,18 @@
             right: 1rem;
             z-index: 1000;
         }
+        .mixed-stream-container {
+            position: relative;
+            aspect-ratio: 16/9;
+            background-color: var(--bs-dark);
+            margin-bottom: 2rem;
+            border: 2px solid var(--bs-primary);
+        }
+        .mixed-stream-container img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
     </style>
 </head>
 <body>
@@ -53,6 +65,21 @@
             {{ error }}
         </div>
         {% endif %}
+
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">Mixed Stream (60s Auto-switch with 3s crossfade)</h5>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="mixed-stream-container">
+                            <img src="{{ url_for('mixed_stream') }}" alt="Mixed Camera Stream">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
 
         <div class="row g-4">
             {% for stream in streams %}
