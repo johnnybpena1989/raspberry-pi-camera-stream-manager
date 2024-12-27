@@ -4,8 +4,7 @@ import threading
 import time
 from queue import Queue
 import logging
-import requests
-from urllib.parse import urlparse
+from stream_proxy import stream_proxy
 
 logger = logging.getLogger(__name__)
 
@@ -21,9 +20,6 @@ class StreamMixer:
         self.last_transition = time.time()
         self.stream1_status = {'online': False, 'last_check': 0, 'retry_count': 0}
         self.stream2_status = {'online': False, 'last_check': 0, 'retry_count': 0}
-        self.retry_interval = 5  # Base retry interval in seconds
-        self.max_retries = 3
-        self.session = requests.Session()
 
     def start(self):
         """Start the stream mixing process"""
@@ -47,48 +43,21 @@ class StreamMixer:
         except:
             return None
 
-    def _get_stream_frame(self, url, stream_number):
-        """Get a frame from a stream URL with improved error handling"""
-        status = self.stream1_status if stream_number == 1 else self.stream2_status
-        current_time = time.time()
-
-        # Check if we should retry based on exponential backoff
-        if not status['online'] and current_time - status['last_check'] < (self.retry_interval * (2 ** status['retry_count'])):
+    def _get_stream_frame(self, stream_id):
+        """Get a frame from the stream proxy's buffer"""
+        frame_data = stream_proxy.get_frame(stream_id)
+        if frame_data is None:
             return None
 
         try:
-            # Stream the response in chunks to find a complete JPEG frame
-            response = self.session.get(url, stream=True, timeout=5)
-            if response.status_code != 200:
-                logger.error(f"Stream {stream_number} returned status code {response.status_code}")
-                return None
-
-            bytes_array = b''
-            for chunk in response.iter_content(chunk_size=1024):
-                if not chunk:
-                    break
-                bytes_array += chunk
-                if bytes_array.endswith(b'\xff\xd9'):
-                    # Successfully got a complete JPEG frame
-                    status['online'] = True
-                    status['retry_count'] = 0
-                    nparr = np.frombuffer(bytes_array, np.uint8)
-                    return cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-
-            logger.warning(f"Stream {stream_number}: Incomplete frame received")
-            return None
-
+            nparr = np.frombuffer(frame_data, np.uint8)
+            return cv2.imdecode(nparr, cv2.IMREAD_COLOR)
         except Exception as e:
-            status['online'] = False
-            status['last_check'] = current_time
-            status['retry_count'] = min(status['retry_count'] + 1, self.max_retries)
-
-            if status['retry_count'] == 1:  # Log only on first retry to prevent spam
-                logger.error(f"Error reading stream {stream_number} ({url}): {str(e)}")
+            logger.error(f"Error decoding frame from stream {stream_id}: {str(e)}")
             return None
 
     def _mix_streams(self):
-        """Main mixing loop with improved error handling"""
+        """Main mixing loop"""
         last_successful_frame1 = None
         last_successful_frame2 = None
 
@@ -98,8 +67,8 @@ class StreamMixer:
                 time_since_transition = current_time - self.last_transition
 
                 # Get frames from both streams
-                frame1 = self._get_stream_frame(self.url1, 1)
-                frame2 = self._get_stream_frame(self.url2, 2)
+                frame1 = self._get_stream_frame(1)
+                frame2 = self._get_stream_frame(2)
 
                 # Update last successful frames if available
                 if frame1 is not None:

@@ -58,7 +58,7 @@ def setup_stream_mixer():
 def proxy_stream(stream_id):
     """Proxy the camera stream through a secure connection"""
     if 1 <= stream_id <= len(STREAM_URLS):
-        return stream_proxy.proxy_stream(STREAM_URLS[stream_id - 1])
+        return stream_proxy.proxy_stream(STREAM_URLS[stream_id - 1], stream_id)
     return Response(status=404)
 
 def check_stream_status(url):
