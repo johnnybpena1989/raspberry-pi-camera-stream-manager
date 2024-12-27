@@ -15,9 +15,9 @@ app.secret_key = os.environ.get("FLASK_SECRET_KEY") or "octoprint-stream-viewer-
 
 # Configure stream URLs - can be overridden by environment variables
 DEFAULT_STREAM_URLS = [
-    "http://10.0.0.15:8080/stream",
-    "http://10.0.0.15:8081/stream",
-    "http://10.0.0.15:8082/stream",
+    "http://24.23.32.16:8080/stream",
+    "http://24.23.32.16:8081/stream",
+    "http://24.23.32.16:8082/stream",
 ]
 
 # Get stream URLs from environment or use defaults
