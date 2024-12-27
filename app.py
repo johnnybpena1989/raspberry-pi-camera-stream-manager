@@ -18,9 +18,9 @@ app.secret_key = os.environ.get("FLASK_SECRET_KEY") or "octoprint-stream-viewer-
 
 # Configure stream URLs - can be overridden by environment variables
 DEFAULT_STREAM_URLS = [
-    "http://24.23.32.16:8080/webcam1/?action=stream",
-    "http://24.23.32.16:8080/webcam2/?action=stream",
-    "http://24.23.32.16:8080/webcam3/?action=stream"
+    "http://10.0.0.17:8080/webcam1/?action=stream",
+    "http://10.0.0.17:8080/webcam2/?action=stream",
+    "http://10.0.0.17:8080/webcam3/?action=stream"
 ]
 
 # Get stream URLs from environment or use defaults
