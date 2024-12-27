@@ -18,9 +18,9 @@ app.secret_key = os.environ.get("FLASK_SECRET_KEY") or "octoprint-stream-viewer-
 
 # Configure stream URLs - can be overridden by environment variables
 DEFAULT_STREAM_URLS = [
-    "https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/360/Big_Buck_Bunny_360_10s_1MB.mp4",
-    "https://test-videos.co.uk/vids/jellyfish/mp4/h264/360/Jellyfish_360_10s_1MB.mp4",
-    "https://test-videos.co.uk/vids/sintel/mp4/h264/360/Sintel_360_10s_1MB.mp4"
+    "http://24.23.32.16:8080/webcam1/?action=stream",
+    "http://24.23.32.16:8080/webcam2/?action=stream",
+    "http://24.23.32.16:8080/webcam3/?action=stream"
 ]
 
 # Get stream URLs from environment or use defaults
@@ -31,7 +31,7 @@ for i in range(len(DEFAULT_STREAM_URLS)):
         STREAM_URLS.append(env_url)
     else:
         STREAM_URLS.append(DEFAULT_STREAM_URLS[i])
-        logger.info(f"Using default test stream URL for camera {i+1}: {DEFAULT_STREAM_URLS[i]}")
+        logger.info(f"Using default stream URL for camera {i+1}: {DEFAULT_STREAM_URLS[i]}")
 
 def get_server_url():
     """Get the server's base URL"""
