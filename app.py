@@ -3,6 +3,7 @@ from flask import Flask, render_template
 import urllib.request
 from urllib.error import URLError
 import json
+import time
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
@@ -23,19 +24,31 @@ STREAM_URLS = [
 ]
 
 def check_stream_status(url):
-    """Check if a stream URL is accessible"""
-    try:
-        response = urllib.request.urlopen(url, timeout=1)  # Reduced timeout for faster feedback
-        return {
-            'status': True,
-            'error': None
-        }
-    except (URLError, TimeoutError) as e:
-        logger.error(f"Error checking stream {url}: {str(e)}")
-        return {
-            'status': False,
-            'error': str(e)
-        }
+    """Check if a stream URL is accessible with retry logic"""
+    max_retries = 2
+    base_timeout = 5.0  # More lenient base timeout
+
+    for attempt in range(max_retries):
+        try:
+            # Increase timeout with each retry
+            current_timeout = base_timeout * (attempt + 1)
+            logger.debug(f"Checking stream {url} (attempt {attempt + 1}/{max_retries}, timeout={current_timeout}s)")
+
+            response = urllib.request.urlopen(url, timeout=current_timeout)
+            return {
+                'status': True,
+                'error': None
+            }
+        except (URLError, TimeoutError) as e:
+            if attempt < max_retries - 1:
+                # Wait before retry with exponential backoff
+                time.sleep(1 * (attempt + 1))
+                continue
+            logger.error(f"Error checking stream {url} after {max_retries} attempts: {str(e)}")
+            return {
+                'status': False,
+                'error': str(e)
+            }
 
 @app.route('/')
 def index():

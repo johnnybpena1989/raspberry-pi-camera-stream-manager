@@ -30,8 +30,8 @@ document.addEventListener('DOMContentLoaded', function() {
             });
     }
 
-    // Check stream statuses periodically (every 10 seconds)
-    setInterval(checkStreamStatuses, 10000);
+    // Check stream statuses periodically (every 30 seconds instead of 10)
+    setInterval(checkStreamStatuses, 30000);
 
     // Initial status check
     checkStreamStatuses();
