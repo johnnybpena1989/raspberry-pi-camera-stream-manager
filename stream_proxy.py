@@ -15,7 +15,7 @@ class StreamProxy:
             'User-Agent': 'OctoPrint-Stream-Viewer/1.0'
         })
         self.stream_buffers = {}
-        self.chunk_size = 1024
+        self.chunk_size = 4096  # Increased chunk size for better performance
         self.frame_buffers = {}
         self.buffer_locks = {}
         self.stream_threads = {}
@@ -24,8 +24,9 @@ class StreamProxy:
         """Buffer stream frames in memory"""
         frame_buffer = self.frame_buffers[stream_id]
         buffer_lock = self.buffer_locks[stream_id]
-        logger.info(f"Starting buffer thread for stream {stream_id} with URL: {stream_url}")
+        logger.info(f"Starting buffer thread for stream {stream_id}")
 
+        bytes_array = b''
         while True:
             try:
                 response = self.session.get(
@@ -36,10 +37,9 @@ class StreamProxy:
 
                 if response.status_code != 200:
                     logger.error(f"Failed to connect to stream {stream_id}: HTTP {response.status_code}")
-                    time.sleep(1)
+                    time.sleep(0.5)  # Reduced sleep time
                     continue
 
-                bytes_array = b''
                 for chunk in response.iter_content(chunk_size=self.chunk_size):
                     if not chunk:
                         break
@@ -47,33 +47,32 @@ class StreamProxy:
                     if bytes_array.endswith(b'\xff\xd9'):  # JPEG end marker
                         with buffer_lock:
                             # Keep only the latest frame
-                            while not frame_buffer.empty():
+                            try:
+                                frame_buffer.put_nowait(bytes_array)
+                            except:
+                                # If buffer is full, get one item to make space
                                 try:
                                     frame_buffer.get_nowait()
+                                    frame_buffer.put_nowait(bytes_array)
                                 except:
-                                    break
-                            frame_buffer.put(bytes_array)
-                            logger.debug(f"Successfully buffered frame for stream {stream_id}")
+                                    pass
                         bytes_array = b''
 
             except requests.exceptions.RequestException as e:
                 logger.error(f"Connection error buffering stream {stream_id}: {str(e)}")
-                time.sleep(1)
+                time.sleep(0.5)  # Reduced sleep time
             except Exception as e:
                 logger.error(f"Unexpected error buffering stream {stream_id}: {str(e)}")
-                time.sleep(1)
+                time.sleep(0.5)  # Reduced sleep time
 
     def get_frame(self, stream_id):
         """Get the latest frame for a stream"""
         if stream_id not in self.frame_buffers:
-            logger.warning(f"Attempted to get frame from non-existent buffer for stream {stream_id}")
             return None
 
         try:
             with self.buffer_locks[stream_id]:
-                frame = self.frame_buffers[stream_id].get_nowait()
-                logger.debug(f"Successfully retrieved frame from buffer for stream {stream_id}")
-                return frame
+                return self.frame_buffers[stream_id].get_nowait()
         except:
             return None
 
@@ -81,13 +80,11 @@ class StreamProxy:
         """Ensure a stream buffer exists and is running"""
         if stream_id not in self.frame_buffers:
             logger.info(f"Initializing buffer for stream {stream_id}")
-            self.frame_buffers[stream_id] = Queue(maxsize=1)
+            self.frame_buffers[stream_id] = Queue(maxsize=2)  # Increased buffer size
             self.buffer_locks[stream_id] = threading.Lock()
 
             # Stop existing thread if any
             if stream_id in self.stream_threads and self.stream_threads[stream_id].is_alive():
-                logger.info(f"Stopping existing thread for stream {stream_id}")
-                # We can't actually stop the thread, but it will exit on next iteration
                 self.stream_threads[stream_id] = None
 
             self.stream_threads[stream_id] = threading.Thread(
@@ -96,7 +93,6 @@ class StreamProxy:
                 daemon=True
             )
             self.stream_threads[stream_id].start()
-            logger.info(f"Started buffer thread for stream {stream_id}")
 
     def proxy_stream(self, stream_url, stream_id=None):
         """Proxy a stream, optionally with buffering"""
@@ -136,7 +132,7 @@ class StreamProxy:
                 yield (b'--frame\r\n'
                       b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
             else:
-                time.sleep(0.033)  # ~30 FPS
+                time.sleep(0.016)  # ~60 FPS max
 
     def _stream_generator(self, response):
         """Generate streaming response"""
