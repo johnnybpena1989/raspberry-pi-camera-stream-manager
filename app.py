@@ -19,8 +19,8 @@ STREAM_URLS = [
     "http://10.0.0.15:8081/stream",
     "http://10.0.0.15:8082/stream",
     # Test streams for development
-    "https://picsum.photos/800/600", # Static test image
-    "https://media.istockphoto.com/id/1147544807/video/thumbnail-of-3d-printer-working-timelapse-modern-3d-printer-printing-an-object.jpg?s=640x640&k=20&c=B6rjkEUA0k4aBzq3xtAvxHkoAde6TaD5bGh7ZX_H3_I=" # Another test image
+    "https://picsum.photos/seed/test1/800/600",  # Static test image with fixed seed
+    "https://picsum.photos/seed/test2/800/600"   # Another test image with different seed
 ]
 
 def check_stream_status(url):
