@@ -5,6 +5,7 @@ from urllib.request import urlopen, Request
 from urllib.error import URLError, HTTPError
 import time
 from stream_mixer import StreamMixer
+from stream_proxy import stream_proxy
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
@@ -29,9 +30,19 @@ for i in range(len(DEFAULT_STREAM_URLS)):
     else:
         STREAM_URLS.append(DEFAULT_STREAM_URLS[i])
 
-# Initialize the stream mixer with the first two streams
-stream_mixer = StreamMixer(STREAM_URLS[0], STREAM_URLS[1])
+# Initialize the stream mixer with proxied URLs
+stream_mixer = StreamMixer(
+    f"/proxy-stream/1",
+    f"/proxy-stream/2"
+)
 stream_mixer.start()
+
+@app.route('/proxy-stream/<int:stream_id>')
+def proxy_stream(stream_id):
+    """Proxy the camera stream through a secure connection"""
+    if 1 <= stream_id <= len(STREAM_URLS):
+        return stream_proxy.proxy_stream(STREAM_URLS[stream_id - 1])
+    return Response(status=404)
 
 def check_stream_status(url):
     """Check if a stream URL is accessible with retry logic"""
@@ -96,7 +107,7 @@ def index():
             status_info = {'status': False, 'error': 'Failed to check stream status'}
         stream_statuses.append({
             'id': i + 1,
-            'url': url,
+            'url': f"/proxy-stream/{i + 1}",  # Use proxied URLs in the template
             'status': status_info.get('status', False),
             'error': status_info.get('error', 'Unknown error')
         })
@@ -119,7 +130,7 @@ def check_streams():
             status_info = {'status': False, 'error': 'Failed to check stream status'}
         stream_statuses.append({
             'id': i + 1,
-            'url': url,
+            'url': f"/proxy-stream/{i + 1}",  # Use proxied URLs in status checks
             'status': status_info.get('status', False),
             'error': status_info.get('error', 'Unknown error')
         })
