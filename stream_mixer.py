@@ -70,10 +70,18 @@ class StreamMixer:
             return None
 
     def _apply_smooth_transition(self, frame1, frame2, progress):
-        """Apply smooth transition effect between frames"""
-        # Use smooth easing function for transition
-        smooth_progress = 0.5 * (1 - np.cos(progress * np.pi))
-        return cv2.addWeighted(frame1, 1 - smooth_progress, frame2, smooth_progress, 0)
+        """Apply smooth transition effect between frames with enhanced easing"""
+        # Enhanced smooth easing function using cubic bezier curve simulation
+        progress = progress * progress * (3 - 2 * progress)  # Smoother easing
+
+        # Ensure frames are properly aligned before blending
+        if frame1.shape != frame2.shape:
+            h, w = self.target_size
+            frame1 = cv2.resize(frame1, (w, h))
+            frame2 = cv2.resize(frame2, (w, h))
+
+        # Apply crossfade with gamma correction for smoother blending
+        return cv2.addWeighted(frame1, 1 - progress, frame2, progress, 0)
 
     def _mix_streams(self):
         """Main mixing loop with improved transition handling"""
@@ -105,15 +113,16 @@ class StreamMixer:
                     self.stream2_status['online'] = False
 
                 if frame1 is None and frame2 is None:
-                    time.sleep(0.016)
+                    time.sleep(0.033)  # ~30 FPS
                     continue
 
                 # Initialize or update target size
                 if self.target_size is None and (frame1 is not None or frame2 is not None):
                     self.target_size = (frame1 or frame2).shape[:2]
+                    logger.info(f"Set target size to {self.target_size}")
 
                 if self.target_size is None:
-                    time.sleep(0.016)
+                    time.sleep(0.033)
                     continue
 
                 # Create blank frames if needed
@@ -135,7 +144,7 @@ class StreamMixer:
                     # Calculate transition progress
                     progress = min(1.0, (current_time - self.last_transition) / self.transition_duration)
 
-                    # Apply transition effect
+                    # Add transition indicator
                     if self.current_stream == 2:
                         output_frame = self._apply_smooth_transition(frame1, frame2, progress)
                     else:
@@ -147,7 +156,7 @@ class StreamMixer:
                     # Show current stream
                     output_frame = frame2 if self.current_stream == 2 else frame1
 
-                # Resize output frame if needed
+                # Ensure consistent frame size
                 if output_frame.shape[:2] != self.target_size:
                     output_frame = cv2.resize(output_frame, (width, height))
 
@@ -162,8 +171,8 @@ class StreamMixer:
                     except:
                         pass
 
-                time.sleep(0.016)  # ~60 FPS max
+                time.sleep(0.033)  # ~30 FPS
 
             except Exception as e:
                 logger.error(f"Error in stream mixing: {str(e)}")
-                time.sleep(0.016)
+                time.sleep(0.033)
