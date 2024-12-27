@@ -47,11 +47,17 @@ class StreamMixer:
         """Get a frame from the stream proxy's buffer"""
         frame_data = stream_proxy.get_frame(stream_id)
         if frame_data is None:
+            logger.debug(f"No frame available from stream {stream_id}")
             return None
 
         try:
             nparr = np.frombuffer(frame_data, np.uint8)
-            return cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+            frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+            if frame is None:
+                logger.warning(f"Failed to decode frame from stream {stream_id}")
+                return None
+            logger.debug(f"Successfully decoded frame from stream {stream_id}")
+            return frame
         except Exception as e:
             logger.error(f"Error decoding frame from stream {stream_id}: {str(e)}")
             return None
@@ -60,6 +66,7 @@ class StreamMixer:
         """Main mixing loop"""
         last_successful_frame1 = None
         last_successful_frame2 = None
+        frames_processed = 0
 
         while self.running:
             try:
@@ -74,9 +81,16 @@ class StreamMixer:
                 if frame1 is not None:
                     last_successful_frame1 = frame1.copy()
                     logger.debug("Successfully received frame from stream 1")
+                    self.stream1_status['online'] = True
+                else:
+                    self.stream1_status['online'] = False
+
                 if frame2 is not None:
                     last_successful_frame2 = frame2.copy()
                     logger.debug("Successfully received frame from stream 2")
+                    self.stream2_status['online'] = True
+                else:
+                    self.stream2_status['online'] = False
 
                 # Use last successful frames if current frames are unavailable
                 frame1 = frame1 if frame1 is not None else last_successful_frame1
@@ -90,8 +104,10 @@ class StreamMixer:
                 # Create blank frame if one stream is missing
                 if frame1 is None:
                     frame1 = np.zeros_like(frame2)
+                    logger.debug("Using blank frame for stream 1")
                 if frame2 is None:
                     frame2 = np.zeros_like(frame1)
+                    logger.debug("Using blank frame for stream 2")
 
                 # Check if it's time for transition
                 if time_since_transition >= self.transition_interval:
@@ -99,6 +115,7 @@ class StreamMixer:
                     transition_start = current_time
                     self.current_stream = 1 if self.current_stream == 2 else 2
                     self.last_transition = current_time
+                    logger.info(f"Starting transition to stream {self.current_stream}")
                     transition_progress = min(1.0, (current_time - transition_start) / self.transition_duration)
                     alpha = transition_progress if self.current_stream == 2 else (1 - transition_progress)
                 else:
@@ -121,7 +138,9 @@ class StreamMixer:
                 # Put in queue, skip if queue is full
                 try:
                     self.frame_queue.put_nowait(buffer.tobytes())
-                    logger.debug("Successfully mixed and queued frame")
+                    frames_processed += 1
+                    if frames_processed % 30 == 0:  # Log every 30 frames
+                        logger.debug(f"Successfully processed {frames_processed} frames")
                 except:
                     pass
 
